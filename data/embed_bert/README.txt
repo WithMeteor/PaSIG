@@ -1,0 +1,1 @@
+Save the encoding of BERT.
