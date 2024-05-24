@@ -65,7 +65,7 @@ Run the preprocessing code ```proc/preprocess_data.py``` and ```proc/graph_build
 ```
 
 ```shell
-  python src/graph_builder.py
+  python proc/graph_builder.py
 ```
 
 The intermediate data file will be saved in the path ```data/temp/``` and ```data/graph/```.
