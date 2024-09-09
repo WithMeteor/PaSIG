@@ -19,7 +19,7 @@ from argparse import ArgumentParser
 from proc.dataset_config import data_args
 from torch.nn.functional import log_softmax
 from src.dataset_graph_batch import get_data_loader
-from src.gnn_model_batch import GCN, SAGE, GIN, GFUS, GMFB
+from src.gnn_model_batch import GCN, SAGE, GIN, GFUS
 
 
 def get_args():
@@ -104,10 +104,6 @@ def main():
         gnn_model = GCN(args.num_features, args.hidden_dim,
                         num_classes, args.num_layers,
                         args.dropout)
-    elif args.gnn_model == 'gmfb':
-        gnn_model = GMFB(args.num_features, args.hidden_dim,
-                         num_classes, args.num_layers,
-                         args.dropout)
     else:
         gnn_model = GFUS(args.num_features, args.hidden_dim,
                          num_classes, args.num_layers,

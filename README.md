@@ -89,13 +89,13 @@ The intermediate data file will be saved in the path ```data/temp/``` and ```dat
 - Train PaSIG, run the code ```src/train_gnn.py```. For example:
   
   ```shell
-  python src/train_gnn.py --dataset mr --gnn_model gcat
+  python src/train_gnn.py --dataset mr --gnn_model gfus
   ```
 
 - Train PaSIG-S, run the code ```src/train_gnn_batch.py```. For example:
   
   ```shell
-  python src/train_gnn_batch.py --dataset mr --gnn_model gcat
+  python src/train_gnn_batch.py --dataset mr --gnn_model gfus
   ```
   
-  You can choose 4 gnn components to run: ```gcn, gin, sage, gcat```.
+  You can choose 4 gnn components to run: ```gcn, gin, sage, gfus```.
