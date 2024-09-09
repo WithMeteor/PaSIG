@@ -191,16 +191,14 @@ class GFUSConv(MessagePassing):
         self.normalize = normalize
         self.add_self_loops = add_self_loops
         self.act = torch.sigmoid
+        self.beta = Parameter(torch.rand(1))
         self.gate = nn.Linear(in_channels * 2, 1, bias=bias)
         self.lin_c = Linear(in_channels, out_channels, bias=bias)
-        self.lin_t = Linear(in_channels, in_channels, bias=bias)
-        self.beta = Parameter(torch.rand(1))
 
         self.reset_parameters()
 
     def reset_parameters(self):
         self.lin_c.reset_parameters()
-        self.lin_t.reset_parameters()
         self.gate.reset_parameters()
 
     def forward(self, x: Tensor, edge_index: Adj, edge_weight: OptTensor, node_type: Tensor) -> Tensor:
