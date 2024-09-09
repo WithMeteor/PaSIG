@@ -212,8 +212,6 @@ class GFUSConv(MessagePassing):
                 edge_index, edge_weight, add_self_loops=self.add_self_loops, degree='col')
         agg = self.propagate(edge_index, x=x, edge_weight=edge_weight)
 
-        # lmd = self.act(self.gate(torch.hstack((agg, x_r))))
-        # out = lmd * x_r + (1 - lmd) * self.lin_t(agg)
         ntype_bias = (self.beta * node_type).unsqueeze(1)
         lmd = self.act(self.gate(torch.hstack((agg, x_r))) + ntype_bias)
         out = lmd * x_r + (1 - lmd) * agg

@@ -40,7 +40,7 @@ def get_args():
     parser.add_argument('--early_stopping', help='Tolerance for early stopping (# of epochs).', type=int, default=60)
     parser.add_argument('--fix_seed', help='Fix the random seed.', action='store_true')
     parser.add_argument('--seed', help='The random seed.', default=123)
-    parser.add_argument('--log_dir', help='Log file path.', default='./log/batch')
+    parser.add_argument('--log_dir', help='Log file path.', default='./log')
     parser.add_argument('--out_dir', help='Model save path.', default='./out')
     parser.add_argument('--add_edge', help='Add doc-doc edges to graph.', action='store_true')
 
@@ -162,8 +162,6 @@ def main():
                      f"best_acc={best_acc:.2f}%"))
 
     gnn_model.load_state_dict(best_param)  # load best param
-    if args.gnn_model == 'gfus':
-        print(gnn_model.convs[0].beta, gnn_model.convs[1].beta)
     test_loss, test_acc, test_preds, test_labels = train_eval(
         'test', gnn_model, test_data, test_loader, loss_func, optimizer_gnn, device)
 
