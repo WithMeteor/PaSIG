@@ -24,7 +24,7 @@ from src.dataset_text import get_data_loader
 def get_args():
     parser = ArgumentParser()
     parser.add_argument('--dataset', help='Dataset name.', default='R52')  # mr, ohsumed, 20ng, R8, R52
-    parser.add_argument('--gpu', help='ID of available gpu.', type=int, default=0)
+    parser.add_argument('--gpu', help='ID of available gpu.', type=int, default=1)
     # epoch set: 75 for ohsumed, 20 for mr & R8, 30 for 20ng & R52
     parser.add_argument('--epochs', help='Number of epochs to train.', type=int, default=20)
     parser.add_argument('--batch_size', help='Size of batch for backpropagation.', type=int, default=8)
@@ -35,7 +35,7 @@ def get_args():
     parser.add_argument('--early_stopping', help='Tolerance for early stopping (# of epochs).', type=int, default=60)
     parser.add_argument('--fix_seed', help='Fix the random seed.', action='store_true')
     parser.add_argument('--seed', help='The random seed.', default=123)
-    parser.add_argument('--log_dir', help='Log file path.', default='./log')
+    parser.add_argument('--log_dir', help='Log file path.', default='./log/base')
     parser.add_argument('--out_dir', help='Model save path.', default='./out')
 
     model_args = parser.parse_args()

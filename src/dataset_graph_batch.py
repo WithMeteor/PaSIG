@@ -80,6 +80,10 @@ def get_data_loader(dataset, batch_size, first_neighbor=10, second_neighbor=10, 
     valid_label = torch.tensor(np.concatenate((word_label, text_label[tv_idx])), dtype=torch.long)
     test_label = torch.tensor(np.concatenate((word_label, text_label[all_idx])), dtype=torch.long)
 
+    train_ntype = torch.cat((torch.zeros(word_label.shape[0]), torch.ones(train_idx.shape[0])))
+    valid_ntype = torch.cat((torch.zeros(word_label.shape[0]), torch.ones(tv_idx.shape[0])))
+    test_ntype = torch.cat((torch.zeros(word_label.shape[0]), torch.ones(all_idx.shape[0])))
+
     if add_edge:
         train_adj = sp.load_npz('./data/graph/{}.adj.train.add.npz'.format(dataset))
         valid_adj = sp.load_npz('./data/graph/{}.adj.valid.add.npz'.format(dataset))
@@ -93,9 +97,9 @@ def get_data_loader(dataset, batch_size, first_neighbor=10, second_neighbor=10, 
     valid_edge, valid_weight, valid_adj = sparse_mx_to_torch_sparse_tensor(valid_adj)  # .coalesce()
     test_edge, test_weight, test_adj = sparse_mx_to_torch_sparse_tensor(test_adj)  # .coalesce()
 
-    train_data = Data(x=train_embed, edge_index=train_edge, edge_attr=train_weight, y=train_label)
-    valid_data = Data(x=valid_embed, edge_index=valid_edge, edge_attr=valid_weight, y=valid_label)
-    test_data = Data(x=test_embed, edge_index=test_edge, edge_attr=test_weight, y=test_label)
+    train_data = Data(x=train_embed, edge_index=train_edge, edge_attr=train_weight, y=train_label, node_type=train_ntype)
+    valid_data = Data(x=valid_embed, edge_index=valid_edge, edge_attr=valid_weight, y=valid_label, node_type=valid_ntype)
+    test_data = Data(x=test_embed, edge_index=test_edge, edge_attr=test_weight, y=test_label, node_type=test_ntype)
 
     # first_neighbor, second_neighbor = 10, 10  # 25, 10
     split_idx = get_idx_split(dataset)

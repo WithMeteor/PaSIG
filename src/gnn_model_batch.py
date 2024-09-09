@@ -3,8 +3,7 @@
 
 import torch
 import torch.nn.functional as func
-# from torch_geometric.nn import GINConv
-from src.gnn_layer import GCNConv, SAGEConv, GINConv, GCATConv
+from src.gnn_layer import GCNConv, GINConv, SAGEConv, GFUSConv, GMFBConv
 
 
 class GCN(torch.nn.Module):
@@ -25,7 +24,35 @@ class GCN(torch.nn.Module):
         for conv in self.convs:
             conv.reset_parameters()
 
-    def forward(self, x, adjs, edge_weight):
+    def forward(self, x, adjs, edge_weight, node_type):
+        for i, (edge_index, e_id, size) in enumerate(adjs):
+            x = self.convs[i](x, edge_index, edge_weight[e_id])
+            if i != self.num_layers - 1:
+                x = func.relu(x)
+                x = func.dropout(x, p=self.dropout, training=self.training)
+        # return x.log_softmax(dim=-1), x
+        return x
+
+
+class GIN(torch.nn.Module):
+    def __init__(self, in_channels, hidden_channels, out_channels, num_layers=2,
+                 dropout=0.):
+        super(GIN, self).__init__()
+
+        self.num_layers = num_layers
+        self.hidden_channels = hidden_channels
+        self.convs = torch.nn.ModuleList()
+        self.convs.append(GINConv(in_channels, hidden_channels, hidden_channels))
+        for _ in range(num_layers - 2):
+            self.convs.append(GINConv(hidden_channels, hidden_channels, hidden_channels))
+        self.convs.append(GINConv(hidden_channels, hidden_channels, out_channels))
+        self.dropout = dropout
+
+    def reset_parameters(self):
+        for conv in self.convs:
+            conv.reset_parameters()
+
+    def forward(self, x, adjs, edge_weight, node_type):
         for i, (edge_index, e_id, size) in enumerate(adjs):
             x = self.convs[i](x, edge_index, edge_weight[e_id])
             if i != self.num_layers - 1:
@@ -53,35 +80,7 @@ class SAGE(torch.nn.Module):
         for conv in self.convs:
             conv.reset_parameters()
 
-    def forward(self, x, adjs, edge_weight):  # note that GraphSAGE do not use edge weight in propagation
-        for i, (edge_index, e_id, size) in enumerate(adjs):
-            x = self.convs[i](x, edge_index)
-            if i != self.num_layers - 1:
-                x = func.relu(x)
-                x = func.dropout(x, p=self.dropout, training=self.training)
-        # return x.log_softmax(dim=-1), x
-        return x
-
-
-class GIN(torch.nn.Module):
-    def __init__(self, in_channels, hidden_channels, out_channels, num_layers=2,
-                 dropout=0.):
-        super(GIN, self).__init__()
-
-        self.num_layers = num_layers
-        self.hidden_channels = hidden_channels
-        self.convs = torch.nn.ModuleList()
-        self.convs.append(GINConv(in_channels, hidden_channels, hidden_channels))
-        for _ in range(num_layers - 2):
-            self.convs.append(GINConv(hidden_channels, hidden_channels, hidden_channels))
-        self.convs.append(GINConv(hidden_channels, hidden_channels, out_channels))
-        self.dropout = dropout
-
-    def reset_parameters(self):
-        for conv in self.convs:
-            conv.reset_parameters()
-
-    def forward(self, x, adjs, edge_weight):
+    def forward(self, x, adjs, edge_weight, node_type):
         for i, (edge_index, e_id, size) in enumerate(adjs):
             x = self.convs[i](x, edge_index, edge_weight[e_id])
             if i != self.num_layers - 1:
@@ -91,25 +90,53 @@ class GIN(torch.nn.Module):
         return x
 
 
-class GCAT(torch.nn.Module):
+class GFUS(torch.nn.Module):
     def __init__(self, in_channels, hidden_channels, out_channels, num_layers=2,
                  dropout=0.):
-        super(GCAT, self).__init__()
+        super(GFUS, self).__init__()
 
         self.num_layers = num_layers
         self.hidden_channels = hidden_channels
         self.convs = torch.nn.ModuleList()
-        self.convs.append(GCATConv(in_channels, hidden_channels))
+        self.convs.append(GFUSConv(in_channels, hidden_channels))
         for _ in range(num_layers - 2):
-            self.convs.append(GCATConv(hidden_channels, hidden_channels))
-        self.convs.append(GCATConv(hidden_channels, out_channels))
+            self.convs.append(GFUSConv(hidden_channels, hidden_channels))
+        self.convs.append(GFUSConv(hidden_channels, out_channels))
         self.dropout = dropout
 
     def reset_parameters(self):
         for conv in self.convs:
             conv.reset_parameters()
 
-    def forward(self, x, adjs, edge_weight):
+    def forward(self, x, adjs, edge_weight, node_type):
+        for i, (edge_index, e_id, size) in enumerate(adjs):
+            x = self.convs[i](x, edge_index, edge_weight[e_id], node_type)
+            if i != self.num_layers - 1:
+                x = func.relu(x)
+                x = func.dropout(x, p=self.dropout, training=self.training)
+        # return x.log_softmax(dim=-1), x
+        return x
+
+
+class GMFB(torch.nn.Module):
+    def __init__(self, in_channels, hidden_channels, out_channels, num_layers=2,
+                 dropout=0.):
+        super(GMFB, self).__init__()
+
+        self.num_layers = num_layers
+        self.hidden_channels = hidden_channels
+        self.convs = torch.nn.ModuleList()
+        self.convs.append(GMFBConv(in_channels, hidden_channels))
+        for _ in range(num_layers - 2):
+            self.convs.append(GMFBConv(hidden_channels, hidden_channels))
+        self.convs.append(GMFBConv(hidden_channels, out_channels))
+        self.dropout = dropout
+
+    def reset_parameters(self):
+        for conv in self.convs:
+            conv.reset_parameters()
+
+    def forward(self, x, adjs, edge_weight, node_type):
         for i, (edge_index, e_id, size) in enumerate(adjs):
             x = self.convs[i](x, edge_index, edge_weight[e_id])
             if i != self.num_layers - 1:

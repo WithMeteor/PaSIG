@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 from torch import Tensor
 from torch.nn import Parameter
-import torch.nn.functional as func
+# import torch.nn.functional as func
 
 from torch_scatter import scatter_add
 from torch_geometric.nn.inits import zeros
@@ -91,49 +91,6 @@ class GCNConv(MessagePassing):
         return x_j if edge_weight is None else edge_weight.view(-1, 1) * x_j
 
 
-class SAGEConv(MessagePassing):
-
-    def __init__(self, in_channels: int,
-                 out_channels: int, normalize: bool = False,
-                 root_weight: bool = True, bias: bool = True, **kwargs):
-        kwargs.setdefault('aggr', 'mean')
-        super().__init__(**kwargs)
-
-        self.in_channels = in_channels
-        self.out_channels = out_channels
-        self.normalize = normalize
-        self.root_weight = root_weight
-
-        self.lin_l = Linear(in_channels, out_channels, bias=bias)
-        if self.root_weight:
-            self.lin_r = Linear(in_channels, out_channels, bias=False)
-
-        self.reset_parameters()
-
-    def reset_parameters(self):
-        self.lin_l.reset_parameters()
-        if self.root_weight:
-            self.lin_r.reset_parameters()
-
-    def forward(self, x: Tensor, edge_index: Adj) -> Tensor:
-
-        x_r = x.clone()
-
-        out = self.propagate(edge_index, x=x)
-        out = self.lin_l(out)
-
-        if self.root_weight and x_r is not None:
-            out += self.lin_r(x_r)
-
-        if self.normalize:
-            out = func.normalize(out, p=2., dim=-1)
-
-        return out
-
-    def message(self, x_j: Tensor) -> Tensor:
-        return x_j
-
-
 class GINConv(MessagePassing):
 
     def __init__(self, in_channels: int, hidden_channels: int, out_channels: int,
@@ -146,7 +103,7 @@ class GINConv(MessagePassing):
                                  nn.Linear(hidden_channels, out_channels))
         self.initial_eps = eps
         if train_eps:
-            self.eps = torch.nn.Parameter(torch.Tensor([eps]))
+            self.eps = Parameter(torch.Tensor([eps]))
         else:
             self.register_buffer('eps', torch.Tensor([eps]))
 
@@ -183,88 +140,7 @@ class GINConv(MessagePassing):
         return x_j if edge_weight is None else edge_weight.view(-1, 1) * x_j
 
 
-class GINConvOri(MessagePassing):
-
-    def __init__(self, in_channels: int, hidden_channels: int, out_channels: int,
-                 eps: float = 0., train_eps: bool = True,
-                 **kwargs):
-        kwargs.setdefault('aggr', 'add')
-        super().__init__(**kwargs)
-        self.mlp = nn.Sequential(nn.Linear(in_channels, hidden_channels),
-                                 nn.ReLU(),
-                                 nn.Linear(hidden_channels, out_channels))
-        self.initial_eps = eps
-        if train_eps:
-            self.eps = torch.nn.Parameter(torch.Tensor([eps]))
-        else:
-            self.register_buffer('eps', torch.Tensor([eps]))
-
-        self.reset_parameters()
-
-    def reset(self, value):
-        if hasattr(value, 'reset_parameters'):
-            value.reset_parameters()
-        else:
-            for child in value.children() if hasattr(value, 'children') else []:
-                self.reset(child)
-
-    def reset_parameters(self):
-        self.reset(self.mlp)
-        self.eps.data.fill_(self.initial_eps)
-
-    def forward(self, x: Tensor, edge_index: Tensor, edge_weight: OptTensor = None) -> Tensor:
-
-        x_r = x.clone()
-
-        out = self.propagate(edge_index, x=x)
-
-        if x_r is not None:
-            out += (1 + self.eps) * x_r
-
-        return self.mlp(out)
-
-    def message(self, x_j: Tensor) -> Tensor:
-        return x_j
-
-
-class GCATConvOld(MessagePassing):
-
-    def __init__(self, in_channels: int,
-                 out_channels: int, normalize: bool = False,
-                 bias: bool = False, **kwargs):
-        kwargs.setdefault('aggr', 'mean')
-        super().__init__(**kwargs)
-
-        self.in_channels = in_channels
-        self.out_channels = out_channels
-        self.normalize = normalize
-
-        self.lin_c = Linear(in_channels * 2, out_channels, bias=bias)
-
-        self.reset_parameters()
-
-    def reset_parameters(self):
-        self.lin_c.reset_parameters()
-
-    def forward(self, x: Tensor, edge_index: Adj, edge_weight: OptTensor) -> Tensor:
-
-        x_r = x.clone()
-
-        agg = self.propagate(edge_index, x=x, edge_weight=edge_weight)
-
-        out = torch.hstack((agg, x_r))
-        out = self.lin_c(out)
-
-        if self.normalize:
-            out = func.normalize(out, p=2., dim=-1)
-
-        return out
-
-    def message(self, x_j: Tensor, edge_weight: OptTensor) -> Tensor:
-        return x_j if edge_weight is None else edge_weight.view(-1, 1) * x_j
-
-
-class GCATConv(MessagePassing):
+class SAGEConv(MessagePassing):
 
     def __init__(self, in_channels: int,
                  out_channels: int, normalize: bool = True, add_self_loops: bool = True,
@@ -296,8 +172,92 @@ class GCATConv(MessagePassing):
         out = torch.hstack((agg, x_r))
         out = self.lin_c(out)
 
-        # if self.normalize:
-        #     out = func.normalize(out, p=2., dim=-1)
+        return out
+
+    def message(self, x_j: Tensor, edge_weight: OptTensor) -> Tensor:
+        return x_j if edge_weight is None else edge_weight.view(-1, 1) * x_j
+
+
+class GFUSConv(MessagePassing):
+
+    def __init__(self, in_channels: int,
+                 out_channels: int, normalize: bool = True, add_self_loops: bool = True,
+                 bias: bool = False, **kwargs):
+        kwargs.setdefault('aggr', 'add')  # 'mean'
+        super().__init__(**kwargs)
+
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.normalize = normalize
+        self.add_self_loops = add_self_loops
+        self.act = torch.sigmoid
+        self.gate = nn.Linear(in_channels * 2, 1, bias=bias)
+        self.lin_c = Linear(in_channels, out_channels, bias=bias)
+        self.lin_t = Linear(in_channels, in_channels, bias=bias)
+        self.beta = Parameter(torch.rand(1))
+
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        self.lin_c.reset_parameters()
+        self.lin_t.reset_parameters()
+        self.gate.reset_parameters()
+
+    def forward(self, x: Tensor, edge_index: Adj, edge_weight: OptTensor, node_type: Tensor) -> Tensor:
+
+        x_r = x.clone()
+
+        if self.normalize:
+            edge_index, edge_weight = edge_norm(
+                edge_index, edge_weight, add_self_loops=self.add_self_loops, degree='col')
+        agg = self.propagate(edge_index, x=x, edge_weight=edge_weight)
+
+        # lmd = self.act(self.gate(torch.hstack((agg, x_r))))
+        # out = lmd * x_r + (1 - lmd) * self.lin_t(agg)
+        ntype_bias = (self.beta * node_type).unsqueeze(1)
+        lmd = self.act(self.gate(torch.hstack((agg, x_r))) + ntype_bias)
+        out = lmd * x_r + (1 - lmd) * agg
+
+        out = self.lin_c(out)
+
+        return out
+
+    def message(self, x_j: Tensor, edge_weight: OptTensor) -> Tensor:
+        return x_j if edge_weight is None else edge_weight.view(-1, 1) * x_j
+
+
+class GMFBConv(MessagePassing):
+
+    def __init__(self, in_channels: int,
+                 out_channels: int, normalize: bool = True, add_self_loops: bool = True,
+                 bias: bool = False, n_head=5, **kwargs):
+        kwargs.setdefault('aggr', 'add')  # 'mean'
+        super().__init__(**kwargs)
+
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.normalize = normalize
+        self.add_self_loops = add_self_loops
+        self.lin_u = Linear(in_channels, out_channels * n_head, bias=bias)
+        self.lin_v = Linear(in_channels, out_channels * n_head, bias=bias)
+        self.n_head = n_head
+
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        self.lin_u.reset_parameters()
+        self.lin_v.reset_parameters()
+
+    def forward(self, x: Tensor, edge_index: Adj, edge_weight: OptTensor) -> Tensor:
+        x_r = x.clone()
+
+        if self.normalize:
+            edge_index, edge_weight = edge_norm(
+                edge_index, edge_weight, add_self_loops=self.add_self_loops, degree='col')
+
+        agg = self.propagate(edge_index, x=x, edge_weight=edge_weight)
+
+        out = (self.lin_u(x_r) * self.lin_v(agg)).reshape(x.shape[0], self.n_head, -1).sum(dim=1)
 
         return out
 

@@ -19,15 +19,15 @@ from argparse import ArgumentParser
 from proc.dataset_config import data_args
 from torch.nn.functional import log_softmax
 from src.dataset_graph import get_data_loader, get_idx_split
-from src.gnn_model import GCN, SAGE, GIN, GCAT
+from src.gnn_model import GCN, SAGE, GIN, GFUS, GMFB
 
 
 def get_args():
     parser = ArgumentParser()
     parser.add_argument('--dataset', help='Dataset name.', type=str, default='ohsumed')  # mr, ohsumed, 20ng, R8, R52
     parser.add_argument('--gpu', help='ID of available gpu.', type=int, default=0)
-    parser.add_argument('--epochs', help='Number of epochs to train.', type=int, default=200)  # 500
-    parser.add_argument('--gnn_model', help='Choose gnn model.', type=str, default='gcat')  # gcn, sage, gin, gcat
+    parser.add_argument('--epochs', help='Number of epochs to train.', type=int, default=100)  # 200
+    parser.add_argument('--gnn_model', help='Choose gnn model.', type=str, default='gfus')  # gcn, sage, gin, gfus
     parser.add_argument('--num_features', help='Number of input features.', type=int, default=768)
     parser.add_argument('--num_layers', help='Number of GNN layers.', type=int, default=2)
     parser.add_argument('--hidden_dim', help='Number of units in hidden layer.', type=int, default=256)
@@ -37,9 +37,10 @@ def get_args():
     parser.add_argument('--early_stopping', help='Tolerance for early stopping (# of epochs).', type=int, default=60)
     parser.add_argument('--fix_seed', help='Fix the random seed.', action='store_true')
     parser.add_argument('--seed', help='The random seed.', default=123)
-    parser.add_argument('--log_dir', help='Log file path.', default='./log')
+    parser.add_argument('--log_dir', help='Log file path.', default='./log/base')
     parser.add_argument('--out_dir', help='Model save path.', default='./out')
     parser.add_argument('--add_edge', help='Add doc-doc edges to graph.', action='store_true')
+    parser.add_argument('--no_finetuned', help='Use the un-fine-tuned bert to encode node.', action='store_true')
 
     model_args = parser.parse_args()
     return model_args
@@ -51,7 +52,7 @@ def train_eval(cate, model, data, criterion, optimizer, split_idx):
     this_idx = split_idx[cate]
 
     if cate == 'train':
-        cls_output = model(data.x, data.edge_index, data.edge_attr)
+        cls_output = model(data.x, data.edge_index, data.edge_attr, data.node_type)
         act_output = log_softmax(cls_output, dim=-1)[this_idx]
         loss = criterion(act_output, data.y[this_idx])
         optimizer.zero_grad()
@@ -59,7 +60,7 @@ def train_eval(cate, model, data, criterion, optimizer, split_idx):
         optimizer.step()
     else:
         with torch.no_grad():
-            cls_output = model(data.x, data.edge_index, data.edge_attr)
+            cls_output = model(data.x, data.edge_index, data.edge_attr, data.node_type)
             act_output = log_softmax(cls_output, dim=-1)[this_idx]
             loss = criterion(act_output, data.y[this_idx])
 
@@ -91,14 +92,18 @@ def main():
         gnn_model = GIN(args.num_features, args.hidden_dim,
                         num_classes, args.num_layers,
                         args.dropout)
-    elif args.gnn_model == 'gcat':
-        gnn_model = GCAT(args.num_features, args.hidden_dim,
-                         num_classes, args.num_layers,
-                         args.dropout)
-    else:
+    elif args.gnn_model == 'gcn':
         gnn_model = GCN(args.num_features, args.hidden_dim,
                         num_classes, args.num_layers,
                         args.dropout)
+    elif args.gnn_model == 'gmfb':
+        gnn_model = GMFB(args.num_features, args.hidden_dim,
+                         num_classes, args.num_layers,
+                         args.dropout)
+    else:
+        gnn_model = GFUS(args.num_features, args.hidden_dim,
+                         num_classes, args.num_layers,
+                         args.dropout)
 
     gnn_model = gnn_model.to(device)
 
@@ -107,7 +112,8 @@ def main():
     logger = setup_logger('GNN', f'{log_dir}/{dataset}_{args.gnn_model}_{current_time_str}.log')
 
     logger.info(f"load dataset: {dataset}.")
-    train_data, valid_data, test_data = get_data_loader(dataset, add_edge=args.add_edge)
+    train_data, valid_data, test_data = get_data_loader(dataset, add_edge=args.add_edge,
+                                                        no_finetuned=args.no_finetuned)
     split_idx = get_idx_split(args.dataset)
     logger.info(f"train size:{train_data.size(0)}, valid size:{valid_data.size(0)}, test size:{test_data.size(0)}")
 
@@ -144,6 +150,8 @@ def main():
                      f"best_acc={best_acc:.2f}%"))
 
     gnn_model.load_state_dict(best_param)  # load best param
+    if args.gnn_model == 'gfus':
+        print(gnn_model.convs[0].beta, gnn_model.convs[1].beta)
     test_loss, test_acc, test_preds, test_labels = train_eval(
         'test', gnn_model, test_data, loss_func, optimizer_gnn, split_idx)
 

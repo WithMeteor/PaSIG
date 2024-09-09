@@ -56,7 +56,7 @@ def get_idx_split(dataset):
     return split_idx
 
 
-def get_data_loader(dataset, add_edge=False):
+def get_data_loader(dataset, add_edge=False, no_finetuned=False):
     # load data
 
     train_idx = np.load('./data/temp/{}.idx.train.npy'.format(dataset))
@@ -66,10 +66,12 @@ def get_data_loader(dataset, add_edge=False):
     tv_idx = np.concatenate((train_idx, valid_idx))
     all_idx = np.concatenate((train_idx, valid_idx, test_idx))
 
-    word_embed = np.load('./data/embed_bert/{}.embed.word.cls.in.npy'.format(dataset))
-    text_embed = np.load('./data/embed_bert/{}.embed.text.cls.in.npy'.format(dataset))
-    # word_embed = np.load('./data/embed_bert/{}.embed.word.nofine.npy'.format(dataset))
-    # text_embed = np.load('./data/embed_bert/{}.embed.text.nofine.npy'.format(dataset))
+    if no_finetuned:
+        word_embed = np.load('./data/embed_bert/{}.embed.word.nofine.npy'.format(dataset))
+        text_embed = np.load('./data/embed_bert/{}.embed.text.nofine.npy'.format(dataset))
+    else:
+        word_embed = np.load('./data/embed_bert/{}.embed.word.cls.in.npy'.format(dataset))
+        text_embed = np.load('./data/embed_bert/{}.embed.text.cls.in.npy'.format(dataset))
     train_embed = torch.tensor(np.vstack((word_embed, text_embed[train_idx])), dtype=torch.float)
     valid_embed = torch.tensor(np.vstack((word_embed, text_embed[tv_idx])), dtype=torch.float)
     test_embed = torch.tensor(np.vstack((word_embed, text_embed[all_idx])), dtype=torch.float)
@@ -79,6 +81,10 @@ def get_data_loader(dataset, add_edge=False):
     train_label = torch.tensor(np.concatenate((word_label, text_label[train_idx])), dtype=torch.long)
     valid_label = torch.tensor(np.concatenate((word_label, text_label[tv_idx])), dtype=torch.long)
     test_label = torch.tensor(np.concatenate((word_label, text_label[all_idx])), dtype=torch.long)
+
+    train_ntype = torch.cat((torch.zeros(word_label.shape[0]), torch.ones(train_idx.shape[0])))
+    valid_ntype = torch.cat((torch.zeros(word_label.shape[0]), torch.ones(tv_idx.shape[0])))
+    test_ntype = torch.cat((torch.zeros(word_label.shape[0]), torch.ones(all_idx.shape[0])))
 
     if add_edge:
         train_adj = sp.load_npz('./data/graph/{}.adj.train.add.npz'.format(dataset))
@@ -93,9 +99,9 @@ def get_data_loader(dataset, add_edge=False):
     valid_edge, valid_weight, valid_adj = sparse_mx_to_torch_sparse_tensor(valid_adj)  # .coalesce()
     test_edge, test_weight, test_adj = sparse_mx_to_torch_sparse_tensor(test_adj)  # .coalesce()
 
-    train_data = Data(x=train_embed, edge_index=train_edge, edge_attr=train_weight, adj_t=train_adj, y=train_label)
-    valid_data = Data(x=valid_embed, edge_index=valid_edge, edge_attr=valid_weight, adj_t=valid_adj, y=valid_label)
-    test_data = Data(x=test_embed, edge_index=test_edge, edge_attr=test_weight, adj_t=test_adj, y=test_label)
+    train_data = Data(x=train_embed, edge_index=train_edge, edge_attr=train_weight, y=train_label, node_type=train_ntype)
+    valid_data = Data(x=valid_embed, edge_index=valid_edge, edge_attr=valid_weight, y=valid_label, node_type=valid_ntype)
+    test_data = Data(x=test_embed, edge_index=test_edge, edge_attr=test_weight, y=test_label, node_type=test_ntype)
 
     return train_data, valid_data, test_data
 
@@ -105,6 +111,7 @@ if __name__ == '__main__':
     BatchSize = 16
     TrainData, ValidData, TestData = get_data_loader(Dataset)
     print(TrainData, ValidData, TestData)
-    print(TrainData.x, TrainData.adj_t)
-    print(ValidData.x, ValidData.adj_t)
-    print(TestData.x, TestData.adj_t)
+    print(TrainData.x, TrainData.edge_index, TrainData.node_type)
+    print(TrainData.x.shape, TrainData.edge_index.shape, TrainData.node_type.shape)
+    # print(ValidData.x, ValidData.edge_index, ValidData.node_type)
+    # print(TestData.x, TestData.edge_index, TestData.node_type)
