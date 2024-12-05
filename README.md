@@ -1,6 +1,8 @@
 # PaSIG
 
-The source code of "Pre-trained Semantic Interaction based Inductive Graph Neural Networks for Text Classification".
+The implementation of PaSIG in the paper:
+
+Shiyu Wang, Gang Zhou, Jicang Lu, Jing Chen, Ningbo Huang. "Pre-trained Semantic Interaction based Inductive Graph Neural Networks for Text Classification". In 31st International Conference on Computational Linguistics (COLING 2025).
 
 ## File Trees
 
