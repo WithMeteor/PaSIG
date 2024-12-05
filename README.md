@@ -72,7 +72,11 @@ Run the preprocessing code ```proc/preprocess_data.py``` and ```proc/graph_build
 
 The intermediate data file will be saved in the path ```data/temp/``` and ```data/graph/```.
 
-### 3. Train BERT model to obtain text embedding
+### 3. Download BERT model
+
+Download [Bert-Base-Uncased](https://storage.googleapis.com/bert_models/2018_10_18/uncased_L-12_H-768_A-12.zip) model and unzip it in the path ```ptm/```.
+
+### 4. Train BERT model to obtain text embedding
 
 - Train BERT model, run the code ```src/train_bert.py```. For example:
   
@@ -86,7 +90,7 @@ The intermediate data file will be saved in the path ```data/temp/``` and ```dat
   python proc/encoder_bert.py
   ```
 
-### 4. Train GNN model and observe node embedding
+### 5. Train GNN model and observe node embedding
 
 - Train PaSIG, run the code ```src/train_gnn.py```. For example:
   
